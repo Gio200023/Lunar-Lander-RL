@@ -1,116 +1,213 @@
-import gym
-import random
-from keras import Sequential
-from collections import deque
-from keras.layers import Dense
-from keras.optimizers import Adam
-import matplotlib.pyplot as plt
-from keras.activations import relu, linear
-
+import tensorflow as tf
 import numpy as np
+from tensorflow.python.framework import ops
+import gym
+
+class PolicyGradient:   
+    
+    # first we define the __init__ method where we initialize all variables
+    
+    def __init__(self, n_x,n_y,learning_rate=0.01, reward_decay=0.95):
+            
+        # number of states in the environemnt    
+        self.n_x = n_x 
+        
+        # number of actions in the environment
+        self.n_y = n_y
+        
+        # learning rate of the network
+        self.lr = learning_rate
+        
+        # discount factor
+        self.gamma = reward_decay 
+    
+        # initialize the lists for storing observations, actions and rewards
+        self.episode_observations, self.episode_actions, self.episode_rewards = [], [], []
+        
+        # we define a function called build_network for building the neural network
+        self.build_network()
+        
+        # stores the cost i.e loss
+        self.cost_history = []
+        
+        # initialize tensorflow session
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
+        
+
+    # next we define a function called store_transition which stores the transition information
+    # i.e state, action, reward and we can use this transitions for training the network
+
+    def store_transition(self, s, a, r):
+        
+        self.episode_observations.append(s)
+        self.episode_rewards.append(r)
+
+        # store actions as list of arrays
+        action = np.zeros(self.n_y)
+        action[a] = 1
+        self.episode_actions.append(action)
+        
+    # now, we define a function choose_action for choosing the action given the state,
+
+    def choose_action(self, observation):
+
+        # reshape observation to (num_features, 1)
+        observation = observation[:, np.newaxis]
+
+        # run forward propagation to get softmax probabilities
+        prob_weights = self.sess.run(self.outputs_softmax, feed_dict = {self.X: observation})
+
+        # select action using a biased sample this will return the index of the action we have sampled
+        action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
+        
+        return action
+
+    
+    # we define build_network for creating our neural network
+    
+    def build_network(self):
+        
+        # placeholders for input x, and output y
+        self.X = tf.placeholder(tf.float32, shape=(self.n_x, None), name="X")
+        self.Y = tf.placeholder(tf.float32, shape=(self.n_y, None), name="Y")
+        
+        # placeholder for reward
+        self.discounted_episode_rewards_norm = tf.placeholder(tf.float32, [None, ], name="actions_value")
+
+        # we build 3 layer neural network with 2 hidden layers and 1 output layer
+        
+        # number of neurons in the hidden layer
+        units_layer_1 = 10
+        units_layer_2 = 10
+        
+        # number of neurons in the output layer
+        units_output_layer = self.n_y
+        
+        # now let us initialize weights and bias value using tensorflow's tf.contrib.layers.xavier_initializer
+        
+        W1 = tf.get_variable("W1", [units_layer_1, self.n_x], initializer = tf.contrib.layers.xavier_initializer(seed=1))
+        b1 = tf.get_variable("b1", [units_layer_1, 1], initializer = tf.contrib.layers.xavier_initializer(seed=1))
+        W2 = tf.get_variable("W2", [units_layer_2, units_layer_1], initializer = tf.contrib.layers.xavier_initializer(seed=1))
+        b2 = tf.get_variable("b2", [units_layer_2, 1], initializer = tf.contrib.layers.xavier_initializer(seed=1))
+        W3 = tf.get_variable("W3", [self.n_y, units_layer_2], initializer = tf.contrib.layers.xavier_initializer(seed=1))
+        b3 = tf.get_variable("b3", [self.n_y, 1], initializer = tf.contrib.layers.xavier_initializer(seed=1))
+
+        # and then, we perform forward propagation
+
+        Z1 = tf.add(tf.matmul(W1,self.X), b1)
+        A1 = tf.nn.relu(Z1)
+        Z2 = tf.add(tf.matmul(W2, A1), b2)
+        A2 = tf.nn.relu(Z2)
+        Z3 = tf.add(tf.matmul(W3, A2), b3)
+        A3 = tf.nn.softmax(Z3)
+
+
+        # as we require, probabilities, we apply softmax activation function in the output layer,
+        
+        logits = tf.transpose(Z3)
+        labels = tf.transpose(self.Y)
+        self.outputs_softmax = tf.nn.softmax(logits, name='A3')
+
+        # next we define our loss function as cross entropy loss
+        neg_log_prob = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels)
+        
+        # reward guided loss
+        loss = tf.reduce_mean(neg_log_prob * self.discounted_episode_rewards_norm)  
+
+        # we use adam optimizer for minimizing the loss
+        self.train_op = tf.train.AdamOptimizer(self.lr).minimize(loss)
+
+
+    # define discount_and_norm_rewards function which will result the discounted and normalised reward
+    
+    def discount_and_norm_rewards(self):
+        discounted_episode_rewards = np.zeros_like(self.episode_rewards)
+        cumulative = 0
+        for t in reversed(range(len(self.episode_rewards))):
+            cumulative = cumulative * self.gamma + self.episode_rewards[t]
+            discounted_episode_rewards[t] = cumulative
+
+        discounted_episode_rewards -= np.mean(discounted_episode_rewards)
+        discounted_episode_rewards /= np.std(discounted_episode_rewards)
+        return discounted_episode_rewards
+    
+    # now we actually learn i.e train our network
+    
+    def learn(self):
+        # discount and normalize episodic reward
+        discounted_episode_rewards_norm = self.discount_and_norm_rewards()
+
+        # train the nework
+        self.sess.run(self.train_op, feed_dict={
+             self.X: np.vstack(self.episode_observations).T,
+             self.Y: np.vstack(np.array(self.episode_actions)).T,
+             self.discounted_episode_rewards_norm: discounted_episode_rewards_norm,
+        })
+
+        # reset the episodic data
+        self.episode_observations, self.episode_actions, self.episode_rewards  = [], [], []
+
+        return discounted_episode_rewards_norm
+    
 env = gym.make('LunarLander-v2')
-env.seed(0)
-np.random.seed(0)
+env = env.unwrapped
+
+RENDER_ENV = False
+EPISODES = 5000
+rewards = []
+RENDER_REWARD_MIN = 5000
+
+PG = PolicyGradient(
+    n_x = env.observation_space.shape[0],
+    n_y = env.action_space.n,
+    learning_rate=0.02,
+    reward_decay=0.99,
+)
+
+for episode in range(EPISODES):
+    
+    # get the state
+    observation = env.reset()
+    episode_reward = 0
 
 
-class DQN:
+    while True:
+        
+        if RENDER_ENV: env.render()
 
-    """ Implementation of deep q learning algorithm """
+        # choose an action based on the state
+        action = PG.choose_action(observation)
 
-    def __init__(self, action_space, state_space):
+        # perform action in the environment and move to next state and receive reward
+        observation_, reward, done, info = env.step(action)
 
-        self.action_space = action_space
-        self.state_space = state_space
-        self.epsilon = 1.0
-        self.gamma = .99
-        self.batch_size = 64
-        self.epsilon_min = .01
-        self.lr = 0.001
-        self.epsilon_decay = .996
-        self.memory = deque(maxlen=1000000)
-        self.model = self.build_model()
+        # store the transition information
+        PG.store_transition(observation, action, reward)
+        
+        # sum the rewards obtained in each episode
+        episode_rewards_sum = sum(PG.episode_rewards)
+        
+        # if the reward is less than -259 then terminate the episode
+        if episode_rewards_sum < -250:
+            done = True
+    
+        if done:
+            episode_rewards_sum = sum(PG.episode_rewards)
+            rewards.append(episode_rewards_sum)
+            max_reward_so_far = np.amax(rewards)
 
-    def build_model(self):
+            print("Episode: ", episode)
+            print("Reward: ", episode_rewards_sum)
+            print("Max reward so far: ", max_reward_so_far)
 
-        model = Sequential()
-        model.add(Dense(150, input_dim=self.state_space, activation=relu))
-        model.add(Dense(120, activation=relu))
-        model.add(Dense(self.action_space, activation=linear))
-        model.compile(loss='mse', optimizer=Adam(lr=self.lr))
-        return model
+            # train the network
+            discounted_episode_rewards_norm = PG.learn()
 
-    def remember(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
-
-    def act(self, state):
-
-        if np.random.rand() <= self.epsilon:
-            return random.randrange(self.action_space)
-        act_values = self.model.predict(state)
-        return np.argmax(act_values[0])
-
-    def replay(self):
-
-        if len(self.memory) < self.batch_size:
-            return
-
-        minibatch = random.sample(self.memory, self.batch_size)
-        states = np.array([i[0] for i in minibatch])
-        actions = np.array([i[1] for i in minibatch])
-        rewards = np.array([i[2] for i in minibatch])
-        next_states = np.array([i[3] for i in minibatch])
-        dones = np.array([i[4] for i in minibatch])
-
-        states = np.squeeze(states)
-        next_states = np.squeeze(next_states)
-
-        targets = rewards + self.gamma*(np.amax(self.model.predict_on_batch(next_states), axis=1))*(1-dones)
-        targets_full = self.model.predict_on_batch(states)
-        ind = np.array([i for i in range(self.batch_size)])
-        targets_full[[ind], [actions]] = targets
-
-        self.model.fit(states, targets_full, epochs=1, verbose=0)
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+            if max_reward_so_far > RENDER_REWARD_MIN: RENDER_ENV = False
 
 
-def train_dqn(episode):
-
-    loss = []
-    agent = DQN(env.action_space.n, env.observation_space.shape[0])
-    for e in range(episode):
-        state = env.reset()
-        state = np.reshape(state, (1, 8))
-        score = 0
-        max_steps = 3000
-        for i in range(max_steps):
-            action = agent.act(state)
-            env.render()
-            next_state, reward, done, _ = env.step(action)
-            score += reward
-            next_state = np.reshape(next_state, (1, 8))
-            agent.remember(state, action, reward, next_state, done)
-            state = next_state
-            agent.replay()
-            if done:
-                print("episode: {}/{}, score: {}".format(e, episode, score))
-                break
-        loss.append(score)
-
-        # Son 100 episode averaj skoru
-        is_solved = np.mean(loss[-100:])
-        if is_solved > 200:
-            print('\n Task Completed! \n')
             break
-        print("Average over last 100 episode: {0:.2f} \n".format(is_solved))
-    return loss
 
-
-if __name__ == '__main__':
-
-    print(env.observation_space)
-    print(env.action_space)
-    episodes = 400
-    loss = train_dqn(episodes)
-    plt.plot([i+1 for i in range(0, len(loss), 2)], loss[::2])
-    plt.show()
+        # update the next state as current state
+        observation = observation_

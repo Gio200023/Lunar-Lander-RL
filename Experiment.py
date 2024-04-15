@@ -6,7 +6,7 @@ import time
 import argparse
 import sys
 
-from CartPoleDQN import dqn
+from LunarLander import PolicyGradient
 from Helper import LearningCurvePlot, smooth
 from Agent import DQNAgent
 
@@ -19,7 +19,7 @@ def average_over_repetitions(n_repetitions, n_timesteps, max_episode_length, use
     
     for rep in range(n_repetitions): 
         
-        returns, timesteps = dqn(n_timesteps, use_replay_buffer, learning_rate, gamma, policy, epsilon, temp,eval_interval,batch_size=batch_size, use_target_network = use_target_network)
+        returns, timesteps = PolicyGradient(n_timesteps, use_replay_buffer, learning_rate, gamma, policy, epsilon, temp,eval_interval,batch_size=batch_size, use_target_network = use_target_network)
         returns_over_repetitions.append(returns)
         print("Done nr: ", rep)
 
