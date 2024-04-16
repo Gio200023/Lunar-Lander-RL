@@ -16,6 +16,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torch.nn.init as init
 from ReplayBuffer import ReplayMemory
+from ActorCriticLunarLander import Actor, Critic
 
 class DQNAgent(nn.Module):
     """
@@ -191,3 +192,51 @@ class DQNAgent(nn.Module):
             returns.append(R_ep)
         mean_return = np.mean(returns)
         return mean_return
+
+class ActorCriticAgent:
+    def __init__(self, state_dim, action_dim, hidden_size, lr_actor, lr_critic, gamma):
+        self.actor = Actor(state_dim, action_dim, hidden_size)
+        self.critic = Critic(state_dim, hidden_size)
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr_critic)
+        self.gamma = gamma
+
+    def select_action(self, state):
+        state = torch.tensor(state, dtype=torch.float32)
+        action_probs = torch.softmax(self.actor(state), dim=-1)
+        action_dist = torch.distributions.Categorical(action_probs)
+        action = action_dist.sample()
+        return action.item()
+
+    def update(self, state, action, reward, next_state, done):
+        state = torch.tensor(state, dtype=torch.float32)
+        next_state = torch.tensor(next_state, dtype=torch.float32)
+        action = torch.tensor(action, dtype=torch.int64).view(-1, 1)
+        reward = torch.tensor(reward, dtype=torch.float32).view(-1, 1)
+        done = torch.tensor(done, dtype=torch.float32).view(-1, 1)
+
+        # Compute TD target
+        with torch.no_grad():
+            target_value = reward + (1 - done) * self.gamma * self.critic(next_state)
+
+        # Compute advantage
+        critic_value = self.critic(state)
+        advantage = target_value - critic_value
+
+        # Actor Loss
+        action_probs = torch.softmax(self.actor(state), dim=-1)
+        action_dist = torch.distributions.Categorical(action_probs)
+        log_probs = action_dist.log_prob(action.squeeze(-1))
+        actor_loss = -(log_probs * advantage.detach()).mean()
+
+        # Critic Loss
+        critic_loss = nn.MSELoss()(critic_value, target_value)
+
+        # Update networks
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
+
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        self.critic_optimizer.step()
