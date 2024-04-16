@@ -6,7 +6,7 @@ import time
 import argparse
 import sys
 
-from LunarLander import PolicyGradient
+from ActorCriticLunarLander import PolicyGradient
 from Helper import LearningCurvePlot, smooth
 from Agent import DQNAgent
 
