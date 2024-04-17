@@ -195,6 +195,7 @@ class DQNAgent(nn.Module):
 
 class ActorCriticAgent:
     def __init__(self, state_dim, action_dim, hidden_size, lr_actor, lr_critic, gamma):
+        from ActorCriticLunarLander import Actor, Critic 
         self.actor = Actor(state_dim, action_dim, hidden_size)
         self.critic = Critic(state_dim, hidden_size)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
