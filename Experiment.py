@@ -46,24 +46,26 @@ def average_over_repetitions(n_repetitions, n_timesteps, learning_rate, gamma, s
 
 def experiment():
     ####### Settings
-    n_repetitions = 2
+    n_repetitions = 1
     smoothing_window = 9 # Must be an odd number. Use 'None' to switch smoothing off!
+    render_mode= "rgb_array"
         
-    n_timesteps = 20001 # Set one extra timestep to ensure evaluation at start and end
+    n_timesteps = 50001 # Set one extra timestep to ensure evaluation at start and end
     eval_interval = 500
-    gamma = 0.99
     
-    # Back-up & update
+    # gammas = [0.1,0.5,0.99]
+    gamma = 0.90
     learning_rates = [0.01,0.005,0.001]
     
     Plot = LearningCurvePlot(title = "REINFORCE")
     Plot.set_ylim(-600, 200) 
     for learning_rate in learning_rates:
-        learning_curve, timesteps = average_over_repetitions(n_repetitions=n_repetitions, n_timesteps=n_timesteps,
-                                                                learning_rate=learning_rate, gamma=gamma, smoothing_window=smoothing_window, 
-                                                                eval_interval=eval_interval)
-        
-        Plot.add_curve(timesteps,learning_curve,label=("lr:"+str(learning_rate)))
+        # for gamma in gammas:
+            learning_curve, timesteps = average_over_repetitions(n_repetitions=n_repetitions, n_timesteps=n_timesteps,
+                                                                    learning_rate=learning_rate, gamma=gamma, smoothing_window=smoothing_window, 
+                                                                    eval_interval=eval_interval,render_mode=render_mode)
+            
+            Plot.add_curve(timesteps,learning_curve,label=("lr:"+str(learning_rate)))
             
     Plot.save('reinforce.png')
 

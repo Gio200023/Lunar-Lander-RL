@@ -20,7 +20,7 @@ epsilon = 0.05
 temp = 0.05
 
 def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gamma, 
-                eval_interval=eval_interval, render_mode = ""):
+                eval_interval=eval_interval, render_mode = "rgb_array"):
     
     env = gym.make("LunarLander-v2",render_mode=render_mode, continuous = False,gravity = -10.0,enable_wind = False)
     env_eval = gym.make("LunarLander-v2", continuous = False,gravity = -10.0,enable_wind = False)
@@ -34,21 +34,25 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
 
     eval_timesteps = []
     eval_returns = []
-    episode_rewards = []
-    log_probs = []
 
     iteration = 0
     while iteration <= n_timesteps:
+        episode_rewards = []
+        log_probs = []
+        entropies = []
         state, info = env.reset()
         episode_rewards.clear()
         log_probs.clear()
 
         terminated = False
         while not terminated:
-            action, log_prob = reinforceAgent.select_action(state)
+            action, log_prob, entropy = reinforceAgent.select_action(state)
             observation, reward, terminated, truncated, info = env.step(action)
+            
             episode_rewards.append(reward)
             log_probs.append(log_prob)
+            entropies.append(entropy)
+            
             state = observation 
             
             if iteration % eval_interval == 0:
@@ -70,7 +74,7 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
             G = reward + gamma * G
             returns.insert(0, G)
         
-        reinforceAgent.update_policy(rewards=episode_rewards, log_probs=log_probs)
+        reinforceAgent.update_policy_network(rewards=episode_rewards, log_probs=log_probs, entropies=entropies)
         
     env.close()
     
