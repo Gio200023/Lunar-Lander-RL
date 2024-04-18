@@ -1,7 +1,7 @@
 import gym
 import time
 import numpy as np
-from Agent import DQNAgent
+from Agent import ActorCritic_Agent
 import sys
 
 # PARAMETERS if not initialized from Experiment.py
@@ -37,6 +37,9 @@ def reinforce(n_timesteps=num_iterations, use_replay_buffer=True, learning_rate=
                         epsilon_decay=epsilon_decay,
                         epsilon_min=epsilon_min,
                         temp=temp)
+    
+    actor = ActorCritic_Agent("actor")
+    critic = ActorCritic_Agent("critic")
                         
     observation, info = env.reset(seed=42) 
 
@@ -52,15 +55,6 @@ def reinforce(n_timesteps=num_iterations, use_replay_buffer=True, learning_rate=
             action = dqn_agent_and_model.select_action(state,policy=policy)
             print(action)
             observation, reward, terminated, truncated, info = env.step(action)
-
-            if use_replay_buffer:
-                dqn_agent_and_model.remember(state, action, reward, observation, terminated)
-                if len(dqn_agent_and_model.replay_buffer) > batch_size:
-                    dqn_agent_and_model.replay(batch_size)
-            else:
-                dqn_agent_and_model.remember(state, action, reward, observation, terminated)
-                dqn_agent_and_model.replay(batch_size,use_target_network=use_target_network)        
-                dqn_agent_and_model.replay_buffer.clean()
                 
             state = observation            
             
