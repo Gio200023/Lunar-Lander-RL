@@ -7,8 +7,6 @@
 # """
 
 import numpy as np
-from Helper import softmax, argmax
-import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -34,9 +32,11 @@ class REINFORCEAgent(nn.Module):
         print("using: " + str(self.device)+ " device")
         
         self.policy_network = nn.Sequential(
-            nn.Linear(self.n_states, 64),
+            nn.Linear(self.n_states, 32),
             nn.ReLU(),
-            nn.Linear(64, self.n_actions),
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Linear(32, self.n_actions),
             nn.Softmax(dim=-1)
         )
         #initialize policy network
@@ -44,7 +44,6 @@ class REINFORCEAgent(nn.Module):
             if isinstance(layer, nn.Linear):
                 init.xavier_uniform_(layer.weight)
                 init.constant_(layer.bias, 0)
-
         
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=learning_rate)
 
@@ -55,14 +54,20 @@ class REINFORCEAgent(nn.Module):
 
     def select_action(self, state):
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
-        probabilities = self.forward(state)
+        probabilities = self.policy_network(state) 
+        # if self._current_iteration % 500 == 0:
+        #     print(probabilities)
         action = torch.multinomial(probabilities, 1).item()
         log_prob = torch.log(probabilities.squeeze(0)[action])
-        entropy = -(probabilities * torch.log(probabilities)).sum()  # Calculate the entropy of the distribution
+        entropy = -(probabilities * torch.log(probabilities)).sum()
+        # print("\n")
+        # print("prob:" +str(probabilities))
+        # print("action:" +str(action))
+        # print("\n")
         return action, log_prob, entropy
 
     
-    def update_policy_network(self, rewards, log_probs, entropies, beta=0.01):
+    def update_policy_network(self, rewards, log_probs, entropies, beta=0.1):
         rewards = np.array(rewards)
         discounts = np.power(self.gamma, np.arange(len(rewards)))
         returns = np.array([np.sum(rewards[i:] * discounts[:len(rewards)-i]) for i in range(len(rewards))])
@@ -82,6 +87,7 @@ class REINFORCEAgent(nn.Module):
 
         self.optimizer.zero_grad()
         total_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=1.0)
         self.optimizer.step()
     
         

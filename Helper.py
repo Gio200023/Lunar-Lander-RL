@@ -13,7 +13,9 @@ from scipy.signal import savgol_filter
 class LearningCurvePlot:
 
     def __init__(self,title=None):
-        self.fig,self.ax = plt.subplots()
+        self.fig,self.ax = plt.subplots(figsize=(15, 8))
+        # self.fig,self.ax = plt.subplots()
+        self.fig.tight_layout(rect=[0, 0, 0.7, 1])
         self.ax.set_xlabel('Timestep')
         self.ax.set_ylabel('Episode Return')      
         if title is not None:
@@ -35,8 +37,13 @@ class LearningCurvePlot:
 
     def save(self,name='test.png'):
         ''' name: string for filename of saved figure '''
-        self.ax.legend()
-        self.fig.savefig(name,dpi=300)
+        box = self.ax.get_position()
+        self.ax.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9])
+        self.ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), ncol=3)
+        # self.ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        self.fig.savefig(name, dpi=300, bbox_inches='tight')
+        # self.fig.savefig(name,dpi=300)
+
 
 def smooth(y, window, poly=2):
     '''
@@ -76,6 +83,6 @@ if __name__ == '__main__':
     x = np.arange(100)
     y = 0.01*x + np.random.rand(100) - 0.4 # generate some learning curve y
     LCTest = LearningCurvePlot(title="Test Learning Curve")
-    LCTest.add_curve(y,label='method 1')
-    LCTest.add_curve(smooth(y,window=35),label='method 1 smoothed')
+    LCTest.add_curve(x,y,label='method 1')
+    LCTest.add_curve(x,smooth(y,window=35),label='method 1 smoothed')
     LCTest.save(name='learning_curve_test.png')
