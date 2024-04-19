@@ -67,7 +67,7 @@ def experiment():
             
             Plot.add_curve(timesteps,learning_curve,label=("lr:"+str(learning_rate)))
             
-    Plot.save('reinforce.png')
+    Plot.save('new_plots/reinforce.png')
 
 if __name__ == '__main__':
     # args = get_args()

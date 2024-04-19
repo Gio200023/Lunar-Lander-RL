@@ -68,11 +68,6 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
                 break
             if terminated:
                 break
-            
-            # if iteration % eval_interval == 0:
-            #         print("episode_rewards = " + str(episode_rewards))
-            #         print("log_probs = " + str(log_probs))
-            
         
         returns = []
         G = 0
