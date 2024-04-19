@@ -52,7 +52,7 @@ class ActorCritic_Agent(nn.Module):
         
         self.to(self.device)
 
-    def forward(self, x, target=False):
+    def forward(self, state):
         state = torch.FloatTensor(state).to(self.device)
         action_probs = F.softmax(self.actor(state), dim=-1)
         state_value = self.critic(state)
@@ -68,7 +68,11 @@ class ActorCritic_Agent(nn.Module):
 
     def update(self, rewards, log_probs, state_values, entropies):
             discounts = [self.gamma ** i for i in range(len(rewards))]
-            returns = [sum(discounts[:len(rewards)-i] * rewards[i:]) for i in range(len(rewards))]
+            print("discounts "+str(discounts))
+            print("rewards "+str(rewards))
+            print("statevalue "+str(state_values))
+            print("entropies "+str(entropies))
+            returns = np.array([np.sum(rewards[i:] * discounts[:len(rewards)-i]) for i in range(len(rewards))])
             returns = torch.tensor(returns).to(self.device)
 
             loss = 0

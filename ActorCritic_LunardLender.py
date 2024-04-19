@@ -1,81 +1,69 @@
 import gym
-import time
 import numpy as np
 from Agent import ActorCritic_Agent
-import sys
 
 # PARAMETERS if not initialized from Experiment.py
-num_iterations = 1000 
-num_eval_episodes = 10 
-eval_interval = 1000  
+num_iterations = 1000
+num_eval_episodes = 10
+eval_interval = 100
 
-initial_collect_steps = 100  
-collect_steps_per_iteration =   1
-replay_buffer_max_length = 10000
-
-batch_size = 64  
-log_interval = 200
-
-learning_rate = 1e-3  
+batch_size = 64
+learning_rate = 1e-3
 gamma = 0.99
-epsilon = 0.05
-temp = 0.05
+_entropy = 0.01
 
-def reinforce(n_timesteps=num_iterations, use_replay_buffer=True, learning_rate=learning_rate, gamma=gamma, 
-        policy="egreedy", epsilon=epsilon, temp=temp, eval_interval=eval_interval, batch_size=batch_size, use_target_network = True):
+def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gamma, 
+              eval_interval=eval_interval, render_mode="human",_entropy=_entropy):
     
-    env = gym.make("LunarLander-v2",render_mode="human", continuous = False,gravity = -10.0,enable_wind = False)
+    env = gym.make("LunarLander-v2", render_mode=render_mode)
     env_eval = gym.make("LunarLander-v2")
-    epsilon_decay = 0.995
-    epsilon_min = 0.05
-    
-    dqn_agent_and_model = DQNAgent(n_states=8, 
-                        n_actions=4, 
-                        learning_rate=learning_rate, 
-                        gamma=gamma,
-                        epsilon=epsilon,
-                        epsilon_decay=epsilon_decay,
-                        epsilon_min=epsilon_min,
-                        temp=temp)
-    
-    actor = ActorCritic_Agent("actor")
-    critic = ActorCritic_Agent("critic")
-                        
-    observation, info = env.reset(seed=42) 
+
+    reinforceAgent = ActorCritic_Agent(n_states=8, n_actions=4, learning_rate=learning_rate,
+                              gamma=gamma, _entropy=_entropy)
 
     eval_timesteps = []
     eval_returns = []
 
     iteration = 0
-    while iteration <= n_timesteps:
-        state, info = env.reset()
-
-        terminated = False
-        while not terminated:
-            action = dqn_agent_and_model.select_action(state,policy=policy)
-            print(action)
+    while iteration < n_timesteps:
+        state, info = env.reset(seed=42) 
+        episode_rewards = []
+        log_probs = []
+        state_values = []
+        entropies = []
+        done = False
+        
+        while not done:
+            action, log_prob, entropy = reinforceAgent.select_action(state)
             observation, reward, terminated, truncated, info = env.step(action)
-                
-            state = observation            
             
+            episode_rewards.append(reward)
+            log_probs.append(log_prob)
+            _, state_value = reinforceAgent(state)
+            state_values.append(state_value)
+            entropies.append(entropy)
+            
+            state = observation
+            iteration += 1
+            
+            # Evaluation step
             if iteration % eval_interval == 0:
-                eval_timesteps.append(iteration)
-                eval_returns.append(dqn_agent_and_model.evaluate(env_eval, n_eval_episodes=num_eval_episodes, epsilon = epsilon, temp = temp))
-                print("step: ",iteration)
-
-            iteration+=1
-            dqn_agent_and_model._current_iteration=iteration
-
+                    eval_timesteps.append(iteration)
+                    eval_returns.append(reinforceAgent.evaluate(env_eval, n_eval_episodes=num_eval_episodes))
+                    print(f"Step: {iteration}, Average Return: {np.mean(eval_returns[-1])}")
+        
             if iteration >= n_timesteps:
                 break
             if terminated:
                 break
-
-    dqn_agent_and_model.replay_buffer.clean() 
+        
+        # Update the policy and value networks
+        reinforceAgent.update(episode_rewards, log_probs, state_values, entropies)
+        
     env.close()
+    env_eval.close()
     
-    return np.array(eval_returns), np.array(eval_timesteps) 
-
+    return np.array(eval_returns), np.array(eval_timesteps)
 
 if __name__ == '__main__':
-    reinforce()
+    returns, timesteps = actorcritic()
