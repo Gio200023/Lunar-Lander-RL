@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.nn.init as init
+import time
 
 class REINFORCEAgent(nn.Module):
     """
@@ -32,11 +33,13 @@ class REINFORCEAgent(nn.Module):
         print("using: " + str(self.device)+ " device")
         
         self.policy_network = nn.Sequential(
-            nn.Linear(self.n_states, 32),
+            nn.Linear(self.n_states, 128),
             nn.ReLU(),
-            nn.Linear(32, 32),
+            nn.Linear(128, 128),
             nn.ReLU(),
-            nn.Linear(32, self.n_actions),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, self.n_actions),
             nn.Softmax(dim=-1)
         )
         #initialize policy network
@@ -54,55 +57,86 @@ class REINFORCEAgent(nn.Module):
 
     def select_action(self, state):
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
-        probabilities = self.policy_network(state) 
-        # if self._current_iteration % 500 == 0:
-        #     print(probabilities)
-        action = torch.multinomial(probabilities, 1).item()
+        probabilities = self.policy_network(state)
+
+        try:
+            action = torch.multinomial(probabilities, 1).item()
+        except RuntimeError as e:
+            print("Failed to sample action on GPU. Falling back to CPU. Error:", e)
+
+            probabilities_cpu = probabilities.cpu()
+            action = torch.multinomial(probabilities_cpu, 1).item()
+
         log_prob = torch.log(probabilities.squeeze(0)[action])
         entropy = -(probabilities * torch.log(probabilities)).sum()
-        # print("\n")
-        # print("prob:" +str(probabilities))
-        # print("action:" +str(action))
-        # print("\n")
         return action, log_prob, entropy
-
     
     def update_policy_network(self, rewards, log_probs, entropies, beta=0.1):
-        rewards = np.array(rewards)
-        discounts = np.power(self.gamma, np.arange(len(rewards)))
-        returns = np.array([np.sum(rewards[i:] * discounts[:len(rewards)-i]) for i in range(len(rewards))])
-        returns = torch.tensor(returns, dtype=torch.float32).to(self.device)
         
-        policy_loss = []
-        entropy_term = []
-        for log_prob, R, entropy in zip(log_probs, returns, entropies):
-            loss_item = -log_prob * R  
-            policy_loss.append(loss_item.unsqueeze(0))  
-            entropy_term.append(entropy.unsqueeze(0))  
+        discounted_rewards = []
+        for t in range(len(rewards)):
+            Gt = 0 
+            pw = 0
+            for r in rewards[t:]:
+                Gt = Gt + self.gamma**pw * r
+                pw += 1
+            discounted_rewards.append(Gt)
+        
+        discounted_rewards = torch.tensor(discounted_rewards, dtype=torch.float32).to(self.device)
+        # discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-9)
+        # discounted_rewards = discounted_rewards.to(self.device)
 
-        policy_loss = torch.cat(policy_loss).sum()  
-        entropy_loss = torch.cat(entropy_term).sum() * beta 
+        log_probs = torch.stack(log_probs)
+        entropies = torch.stack(entropies)
+        policy_gradient = -(discounted_rewards * log_probs + beta * entropies)
 
-        total_loss = policy_loss + entropy_loss
-
-        self.optimizer.zero_grad()
-        total_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=1.0)
+        self.policy_network.zero_grad()
+        policy_gradient.sum().backward()
+        # torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=1.0)
         self.optimizer.step()
-    
         
-    def evaluate(self,eval_env,n_eval_episodes=30, max_episode_length=300):
+    def evaluate(self, eval_env, n_eval_episodes=30, max_episode_length=200):
         total_rewards = []
+        episode_maxes = []
+        episode_mins = []
+        
         for _ in range(n_eval_episodes):
             state, info = eval_env.reset()
-            episode_reward = 0
+            episode_rewards = []
             done = False
-            iteration=0
-            while not done and iteration < max_episode_length:
+            truncated = False
+            iteration = 0
+            
+            while not done and not truncated and iteration < max_episode_length:
                 action, log_prob, entropy = self.select_action(state)
                 state, reward, done, truncated, info = eval_env.step(action)
-                episode_reward += reward
-                iteration+=1
-            total_rewards.append(episode_reward)
+                episode_rewards.append(reward)
+                iteration += 1
+            
+            total_rewards.append(sum(episode_rewards))
+            episode_maxes.append(max(episode_rewards))
+            episode_mins.append(min(episode_rewards))
+        
         mean_return = np.mean(total_rewards)
-        return mean_return
+        return mean_return, np.mean(episode_maxes), np.mean(episode_mins)
+        
+    # def evaluate(self,eval_env,n_eval_episodes=30, max_episode_length=200):
+    #     total_rewards = []
+    #     all_rewards = []
+    #     for _ in range(n_eval_episodes):
+    #         state, info = eval_env.reset()
+    #         episode_reward = 0
+    #         done = False
+    #         truncated = False
+    #         iteration=0
+    #         while (not done and not truncated) and iteration < max_episode_length:
+    #             action, log_prob, entropy = self.select_action(state)
+    #             state, reward, done, truncated, info = eval_env.step(action)
+    #             all_rewards.append(reward)
+    #             episode_reward += reward
+    #             iteration+=1
+    #         maxim = max(all_rewards) + episode_reward
+    #         minim = min(all_rewards) + episode_reward
+    #         total_rewards.append(episode_reward)
+    #     mean_return = np.mean(total_rewards)
+    #     return mean_return,maxim,minim

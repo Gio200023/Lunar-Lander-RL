@@ -28,6 +28,11 @@ class LearningCurvePlot:
             self.ax.plot(x,y,label=label)
         else:
             self.ax.plot(x,y)
+
+    def add_fill_between(self,x,y1,y2,label=None):
+        ''' y: vector of average reward results
+        label: string to appear as label in plot legend '''
+        self.ax.fill_between(x, y1, y2, alpha=.5, linewidth=0, label=label)
     
     def set_ylim(self,lower,upper):
         self.ax.set_ylim([lower,upper])
@@ -85,4 +90,5 @@ if __name__ == '__main__':
     LCTest = LearningCurvePlot(title="Test Learning Curve")
     LCTest.add_curve(x,y,label='method 1')
     LCTest.add_curve(x,smooth(y,window=35),label='method 1 smoothed')
+    # LCTest.add_fill_between(x,,label='fill')
     LCTest.save(name='learning_curve_test.png')

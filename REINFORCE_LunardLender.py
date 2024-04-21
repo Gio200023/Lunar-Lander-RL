@@ -1,6 +1,8 @@
 import gym
 import numpy as np
 from Agent import REINFORCEAgent
+import torch
+
 
 # PARAMETERS if not initialized from Experiment.py
 num_iterations = 1000 
@@ -22,11 +24,16 @@ temp = 0.05
 def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gamma, 
                 eval_interval=eval_interval, render_mode = "rgb_array", beta=0.1):
     
+    # env = gym.make("MountainCar-v0")
+    # env_eval = gym.make("MountainCar-v0")
     env = gym.make("LunarLander-v2",render_mode=render_mode, continuous = False,gravity = -10.0,enable_wind = False)
     env_eval = gym.make("LunarLander-v2", continuous = False,gravity = -10.0,enable_wind = False)
     
-    reinforceAgent = REINFORCEAgent(n_states=8, 
+    reinforceAgent = REINFORCEAgent(
+                        n_states=8, 
                         n_actions=4, 
+                        # n_states=2,
+                        # n_actions=3, 
                         learning_rate=learning_rate, 
                         gamma=gamma)
                         
@@ -34,22 +41,30 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
 
     eval_timesteps = []
     eval_returns = []
+    max_min = []
 
     iteration = 0
+    episode = 0
+    
+    # dictionary = {
+    #     "eval_returns" : [],
+    #     "max_min" : []
+    # }
+    
     while iteration <= n_timesteps:
         episode_rewards = []
         log_probs = []
         entropies = []
-        
+
         state, info = env.reset()
-        episode_rewards.clear()
-        log_probs.clear()
 
         terminated = False
-        while not terminated:
+        truncated = False
+        
+        while not (terminated or truncated):
             action, log_prob, entropy = reinforceAgent.select_action(state)
             observation, reward, terminated, truncated, info = env.step(action)
-            
+
             episode_rewards.append(reward)
             log_probs.append(log_prob)
             entropies.append(entropy)
@@ -58,28 +73,30 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
             
             if iteration % eval_interval == 0:
                 eval_timesteps.append(iteration)
-                eval_returns.append(reinforceAgent.evaluate(env_eval, n_eval_episodes=num_eval_episodes))
+                eval_ret,maxim,minim = reinforceAgent.evaluate(env_eval, n_eval_episodes=num_eval_episodes)
+                eval_returns.append(eval_ret)
+                max_min.append([maxim,minim])
                 print("step: ",iteration)
+                print("episode: ",episode)
+                print("Total_reward: ",eval_ret)
+                # print("max_min: ",max_min)
 
             iteration+=1
             reinforceAgent._current_iteration=iteration
 
             if iteration >= n_timesteps:
                 break
-            if terminated:
+            if terminated or truncated:
+                episode += 1
                 break
         
-        returns = []
-        G = 0
-        for reward in reversed(episode_rewards):
-            G = reward + gamma * G
-            returns.insert(0, G)
-            
-        reinforceAgent.update_policy_network(rewards=returns, log_probs=log_probs, entropies=entropies, beta=beta)
-        
+        reinforceAgent.update_policy_network(rewards=episode_rewards, log_probs=log_probs, entropies=entropies, beta=beta)
+    
+    torch.save(reinforceAgent.policy_network, "networks/net_"+str(gamma)+"_"+str(beta)+"_"+str(learning_rate))
+    del reinforceAgent.policy_network
     env.close()
     
-    return np.array(eval_returns), np.array(eval_timesteps) 
+    return np.array(eval_returns), np.array(eval_timesteps), np.array(max_min)
 
 
 if __name__ == '__main__':

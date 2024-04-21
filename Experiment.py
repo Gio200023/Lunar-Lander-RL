@@ -27,47 +27,49 @@ def get_args():
         sys.exit(2)
     return args
 
-def average_over_repetitions(n_repetitions, n_timesteps, learning_rate, gamma, smoothing_window=None, eval_interval=500, render_mode=""):
-
-    returns_over_repetitions = []
+def average_over_repetitions(n_timesteps, learning_rate, gamma, smoothing_window=None, eval_interval=500, render_mode="",beta=0.01):
+    
     now = time.time()
     
-    for rep in range(n_repetitions): 
-        
-        returns, timesteps = reinforce(n_timesteps, learning_rate, gamma,eval_interval,render_mode)
-        returns_over_repetitions.append(returns)
-        print("Done nr: ", rep)
+    returns, timesteps, max_min = reinforce(n_timesteps, learning_rate, gamma,eval_interval,render_mode,beta=beta)
 
+    print(returns)
     print('Running one setting takes {} minutes'.format((time.time()-now)/60))
-    learning_curve = np.mean(np.array(returns_over_repetitions),axis=0) # average over repetitions
-    if smoothing_window is not None: 
-        learning_curve = smooth(learning_curve,smoothing_window) # additional smoothing
-    return learning_curve, timesteps  
+    learning_curve = np.mean(np.array(returns),axis=0) # average over repetitions
+    # if smoothing_window is not None: 
+    #     learning_curve = smooth(learning_curve,smoothing_window) # additional smoothing
+    return returns, timesteps, max_min
 
 def experiment():
     ####### Settings
-    n_repetitions = 1
     smoothing_window = 9 # Must be an odd number. Use 'None' to switch smoothing off!
     render_mode= "rgb_array"
         
-    n_timesteps = 50001 # Set one extra timestep to ensure evaluation at start and end
+    n_timesteps = 300001 # Set one extra timestep to ensure evaluation at start and end
     eval_interval = 500
     
-    # gammas = [0.1,0.5,0.99]
-    gamma = 0.90
-    learning_rates = [0.01,0.005,0.001]
+    learning_rates = [0.01,0.001]
+    gammas = [0.1,0.99]
+    betas = [0.1,0.9]
+    # gammas = [0.99]
+    # learning_rates = [0.001]
+    # betas = [0.9]
     
     Plot = LearningCurvePlot(title = "REINFORCE")
-    Plot.set_ylim(-600, 200) 
+    Plot.set_ylim(-300, 300)
     for learning_rate in learning_rates:
-        # for gamma in gammas:
-            learning_curve, timesteps = average_over_repetitions(n_repetitions=n_repetitions, n_timesteps=n_timesteps,
-                                                                    learning_rate=learning_rate, gamma=gamma, smoothing_window=smoothing_window, 
-                                                                    eval_interval=eval_interval,render_mode=render_mode)
+        for gamma in gammas:
+            for beta in betas:
+                print(f"Paramters set: \n lr: {learning_rate}\n gamma: {gamma} \n beta {beta}")
+                learning_curve, timesteps, max_min = average_over_repetitions(n_timesteps=n_timesteps,learning_rate=learning_rate, 
+                                                                     gamma=gamma, smoothing_window=smoothing_window, 
+                                                                     eval_interval=eval_interval,render_mode=render_mode, beta=beta)
+                
+
+                Plot.add_fill_between(timesteps,[item[0] for item in max_min],[item[1] for item in max_min])
+                Plot.add_curve(timesteps,learning_curve,label=("lr:"+str(learning_rate)+"gam:"+str(gamma)+"beta:"+str(beta)))
             
-            Plot.add_curve(timesteps,learning_curve,label=("lr:"+str(learning_rate)))
-            
-    Plot.save('new_plots/reinforce.png')
+    Plot.save('new_plots/reinforce_lunar_lander_300k_multiple_param_big_net.png')
 
 if __name__ == '__main__':
     # args = get_args()
