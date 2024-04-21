@@ -1,5 +1,8 @@
 rl2/
 ass3/
+networks/
+new_plots/
+plots/
 
 *.pyc
 __pycache__/
