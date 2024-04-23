@@ -1,8 +1,13 @@
 rl2/
 ass3/
+new_plots/
+plots/
+networks/
 
 *.pyc
 __pycache__/
 dist/
 build/
 *.egg-info/
+
+.vscode/

@@ -6,7 +6,7 @@ import time
 import argparse
 import sys
 
-from ActorCritic_LunardLender import actorcritic 
+from ActorCritic_LunarLender import actorcritic 
 from Helper import LearningCurvePlot, smooth
 
 def get_args():
@@ -34,7 +34,7 @@ def average_over_repetitions(n_repetitions, n_timesteps, learning_rate, gamma, s
     
     for rep in range(n_repetitions): 
         
-        returns, timesteps = actorcritic(n_timesteps, learning_rate, gamma,eval_interval,render_mode,_entropy=entropy)
+        returns, timesteps = actorcritic(n_timesteps, learning_rate, gamma,eval_interval,render_mode,beta=entropy)
         returns_over_repetitions.append(returns)
         print("Done nr: ", rep)
 
@@ -50,25 +50,32 @@ def experiment():
     smoothing_window = 9 # Must be an odd number. Use 'None' to switch smoothing off!
     render_mode= "rgb_array"
         
-    n_timesteps = 50001 # Set one extra timestep to ensure evaluation at start and end
+    n_timesteps = 300001 # Set one extra timestep to ensure evaluation at start and end
     eval_interval = 500
     
-    # gammas = [0.1,0.5,0.99]
-    gamma = 0.90
-    learning_rates = [0.01,0.005,0.001]
-    entropy = 0.01
+    # gammas = [0.1,0.99]
+    # learning_rates = [0.01,0.001]
+    # entropies = [0.01,0.9]
+    gammas = [0.99]
+    learning_rates = [0.01]
+    entropies = [0.9]
     
-    Plot = LearningCurvePlot(title = "REINFORCE")
+    Plot = LearningCurvePlot(title = "Actor-Critic")
     Plot.set_ylim(-600, 200) 
     for learning_rate in learning_rates:
-        # for gamma in gammas:
-            learning_curve, timesteps = average_over_repetitions(n_repetitions=n_repetitions, n_timesteps=n_timesteps,
-                                                                    learning_rate=learning_rate, gamma=gamma, smoothing_window=smoothing_window, 
-                                                                    eval_interval=eval_interval,render_mode=render_mode, entropy=entropy)
+        for gamma in gammas:
+            for entropy in entropies:
+                print("Training with settings:")
+                print(f"learning_rate = {learning_rate}")
+                print(f"gamma = {gamma}")
+                print(f"entropy = {entropy}")
+                learning_curve, timesteps = average_over_repetitions(n_repetitions=n_repetitions, n_timesteps=n_timesteps,
+                                                                        learning_rate=learning_rate, gamma=gamma, smoothing_window=smoothing_window, 
+                                                                        eval_interval=eval_interval,render_mode=render_mode, entropy=entropy)
+                
+                Plot.add_curve(timesteps,learning_curve,label=("lr:"+str(learning_rate)+"gamma:"+str(gamma)+"entropy:"+str(entropy)))
             
-            Plot.add_curve(timesteps,learning_curve,label=("lr:"+str(learning_rate)))
-            
-    Plot.save('reinforce.png')
+    Plot.save('new_plots/actor_critic_300k_totalparam_lr_001.png')
 
 if __name__ == '__main__':
     # args = get_args()
