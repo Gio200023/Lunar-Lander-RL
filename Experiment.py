@@ -6,9 +6,9 @@ import time
 import argparse
 import sys
 
-from ActorCriticLunarLander import PolicyGradient
+from ActorCriticLunarLander import PolicyGradient, ActorCriticAgent
 from Helper import LearningCurvePlot, smooth
-from Agent import DQNAgent
+# from Agent import DQNAgent
 
 def average_over_repetitions(n_repetitions, n_timesteps, max_episode_length, use_replay_buffer, learning_rate, 
                                           gamma, policy, epsilon, epsilon_decay, epsilon_min, temp, temp_min, temp_decay, smoothing_window=None, eval_interval=500,batch_size=64,
