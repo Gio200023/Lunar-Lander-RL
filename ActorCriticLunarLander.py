@@ -3,10 +3,24 @@ import torch.nn as nn
 import torch.optim as optim
 import gym
 
+# num_iterations = 1000 
+# num_eval_episodes = 10 
+# eval_interval = 1000  
+
+# initial_collect_steps = 100  
+# collect_steps_per_iteration = 1
+# replay_buffer_max_length = 10000
+
+# batch_size = 64  
+# log_interval = 200
+
+# learning_rate = 1e-3  
+# gamma = 0.99
+# epsilon = 0.05
+# temp = 0.05
 
 class ActorCriticAgent:
     def __init__(self, state_dim, action_dim, hidden_size, lr_actor, lr_critic, gamma):
-        from ActorCriticLunarLander import Actor, Critic 
         self.actor = Actor(state_dim, action_dim, hidden_size)
         self.critic = Critic(state_dim, hidden_size)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
@@ -76,6 +90,7 @@ class Critic(nn.Module):
         return x
 
 env = gym.make('LunarLander-v2')
+# env = gym.make("LunarLander-v2",render_mode=render_mode, continuous = False,gravity = -10.0,enable_wind = False)
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.n
 hidden_size = 128
