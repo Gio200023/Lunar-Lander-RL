@@ -55,7 +55,7 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
     while iteration <= n_timesteps:
         episode_rewards = []
         log_probs = []
-        entropies = []
+        entropies = 0
 
         state, info = env.reset()
 
@@ -68,7 +68,7 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
 
             episode_rewards.append(reward)
             log_probs.append(log_prob)
-            entropies.append(entropy)
+            entropies += entropy
             
             state = observation 
             

@@ -32,14 +32,13 @@ from Helper import LearningCurvePlot, smooth
 def average_over_repetitions(n_timesteps, learning_rate, gamma, smoothing_window=None, eval_interval=500, render_mode="",beta=0.01,return_dict=None):
     
     now = time.time()
-    
     returns, timesteps, max_min = reinforce(n_timesteps, learning_rate, gamma,eval_interval,render_mode,beta=beta)
 
     print(returns)
     print('Running one setting takes {} minutes'.format((time.time()-now)/60))
-    learning_curve = np.mean(np.array(returns),axis=0) # average over repetitions
+    # learning_curve = np.mean(np.array(returns),axis=0) # average over repetitions
     # if smoothing_window is not None: 
-    #     learning_curve = smooth(learning_curve,smoothing_window) # additional smoothing
+    #     returns = smooth(returns,smoothing_window) # additional smoothing
     return_dict.append([returns, timesteps, max_min])
 
 def experiment():
@@ -47,18 +46,20 @@ def experiment():
     smoothing_window = 9 # Must be an odd number. Use 'None' to switch smoothing off!
     render_mode= "rgb_array"
         
-    n_timesteps = 300001 # Set one extra timestep to ensure evaluation at start and end
-    eval_interval = 500
+    n_timesteps = 4001 # Set one extra timestep to ensure evaluation at start and end
+    eval_interval = 1000
     
     Plot = LearningCurvePlot(title = "REINFORCE")
     Plot.set_ylim(-300, 300)
     
-    learning_rates = [0.01,0.001]
-    gammas = [0.1,0.99]
-    betas = [0.1,0.9, 0.5]
-    # gammas = [0.99]
-    # learning_rates = [0.001]
-    # betas = [0.9]
+    # learning_rates = [0.01,0.001]
+    # gammas = [0.1,0.99]
+    # betas = [0.01,0.9]
+    gammas = [0.99]
+    learning_rates = [0.001]
+    betas = [0.9]
+    
+    params = []
     
     manager = Manager()
     return_dict = manager.list()
@@ -73,16 +74,17 @@ def experiment():
                 procs.append(proc)
                 proc.start()
                 
+                params.append([learning_rate,gamma,beta])
 
-                # Plot.add_fill_between(timesteps,[item[0] for item in max_min],[item[1] for item in max_min])
 
     for proc in procs:
         proc.join()
     
     for _ in range(len(return_dict)):
-        Plot.add_curve(return_dict[_][1],return_dict[_][0],label=("lr:"+str(learning_rate)+"gam:"+str(gamma)+"beta:"+str(beta)))
+        Plot.add_fill_between(return_dict[_][1],return_dict[_][0],label=("lr:"+str(params[_][0])+"gam:"+str(params[_][1])+"beta:"+str(params[_][2])))
+        # Plot.add_curve(return_dict[_][1],return_dict[_][0],label=("lr:"+str(params[_][0])+"gam:"+str(params[_][1])+"beta:"+str(params[_][2])))
             
-    Plot.save('new_plots/reinforce_multiparam_300k_parallel.png')
+    Plot.save('new_plots/lol.png')
 
 if __name__ == '__main__':
     # args = get_args()

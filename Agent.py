@@ -85,8 +85,9 @@ class REINFORCEAgent(nn.Module):
             policy_loss.append(-log_prob * reward)
         policy_loss = torch.stack(policy_loss).sum()
         
-        entropies = torch.tensor(entropies, dtype=torch.float32)
+        # entropies = torch.tensor(entropies, dtype=torch.float32)
         entropy_loss = torch.mean(entropies)
+        # print(f"entropy_loss = {entropy_loss}")
         policy_loss = policy_loss - beta * entropy_loss
         
         self.optimizer.zero_grad()

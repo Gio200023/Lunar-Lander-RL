@@ -29,10 +29,17 @@ class LearningCurvePlot:
         else:
             self.ax.plot(x,y)
 
-    def add_fill_between(self,x,y1,y2,label=None):
+    def add_fill_between(self,x,y,label=None):
         ''' y: vector of average reward results
         label: string to appear as label in plot legend '''
-        self.ax.fill_between(x, y1, y2, alpha=.5, linewidth=0, label=label)
+        print("y ",y)
+        mean = np.mean(y, axis=0)
+        std = np.std(y, axis=0)
+        print("mean: ", mean)
+        print("std: ", std)
+
+        self.ax.fill_between(x, mean - std, mean + std, alpha=.5, linewidth=0, label=label)
+        self.ax.plot(x,y,label=label)
     
     def set_ylim(self,lower,upper):
         self.ax.set_ylim([lower,upper])
