@@ -2,6 +2,7 @@ import gym
 import numpy as np
 from Agent import REINFORCEAgent
 import torch
+import sys
 
 
 # PARAMETERS if not initialized from Experiment.py
@@ -77,7 +78,7 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
                 eval_returns.append(eval_ret)
                 max_min.append([maxim,minim])
                 print("step: ",iteration)
-                print("episode: ",episode)
+                print("Number of episodes: ",episode)
                 print("Total_reward: ",eval_ret)
                 # print("max_min: ",max_min)
 

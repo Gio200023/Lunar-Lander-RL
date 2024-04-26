@@ -33,12 +33,12 @@ class REINFORCEAgent(nn.Module):
         print("using: " + str(self.device)+ " device")
         
         self.policy_network = nn.Sequential(
-            nn.Linear(self.n_states, 128),
+            nn.Linear(self.n_states, 64),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
+            # nn.Linear(128, 128),
+            # nn.ReLU(),
+            # nn.Linear(128, 64),
+            # nn.ReLU(),
             nn.Linear(64, self.n_actions),
             nn.Softmax(dim=-1)
         )
@@ -74,24 +74,23 @@ class REINFORCEAgent(nn.Module):
     def update_policy_network(self, rewards, log_probs, entropies, beta=0.1):
         
         discounted_rewards = []
-        for t in range(len(rewards)):
-            Gt = 0 
-            pw = 0
-            for r in rewards[t:]:
-                Gt = Gt + self.gamma**pw * r
-                pw += 1
-            discounted_rewards.append(Gt)
+        cum_reward = 0
+        for reward in rewards[::-1]:
+            cum_reward = reward + self.gamma * cum_reward
+            discounted_rewards.insert(0, cum_reward)
+        discounted_rewards = torch.FloatTensor(discounted_rewards).to(self.device)
         
-        discounted_rewards = torch.tensor(discounted_rewards, dtype=torch.float32).to(self.device)
-        # discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-9)
-        # discounted_rewards = discounted_rewards.to(self.device)
-
-        log_probs = torch.stack(log_probs)
-        entropies = torch.stack(entropies)
-        policy_gradient = -(discounted_rewards * log_probs + beta * entropies)
-
-        self.policy_network.zero_grad()
-        policy_gradient.sum().backward()
+        policy_loss = []
+        for log_prob, reward in zip(log_probs, discounted_rewards):
+            policy_loss.append(-log_prob * reward)
+        policy_loss = torch.stack(policy_loss).sum()
+        
+        entropies = torch.tensor(entropies, dtype=torch.float32)
+        entropy_loss = torch.mean(entropies)
+        policy_loss = policy_loss - beta * entropy_loss
+        
+        self.optimizer.zero_grad()
+        policy_loss.backward()
         # torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=1.0)
         self.optimizer.step()
         
