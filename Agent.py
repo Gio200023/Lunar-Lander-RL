@@ -71,12 +71,17 @@ class Q_ActorCritic_Agent(nn.Module):
         self.to(self.device)
 
     def forward(self, state):
-        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        if not isinstance(state, torch.Tensor):
+            state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         value = self.critic(state)
-        policy_dist = F.softmax(self.actor(state), dim=1)
+        actor_output = self.actor(state)
+        if len(actor_output.shape) == 1:
+            actor_output = actor_output.unsqueeze(0)
+        policy_dist = F.softmax(actor_output, dim=-1)
         
         return value, policy_dist
-        
+
+    
     def select_action(self, state):
         action_probs, _ = self(state)
         dist = Categorical(action_probs)
@@ -85,10 +90,22 @@ class Q_ActorCritic_Agent(nn.Module):
         entropy = dist.entropy()
         return action.item(), log_prob, entropy
     
+
     def update(self,state, rewards, log_probs, values, entropy):
-        
+        next_state_values, _ = self.forward(state)
         values = torch.tensor(values,dtype=torch.float32).to(self.device)
-        
+        Qvals = rewards + self.gamma * next_state_values.squeeze(0)
+
+        log_probs = torch.stack(log_probs)
+
+        advantage = Qvals - values
+        actor_loss = (-log_probs * advantage).mean()
+        critic_loss = 0.5 * advantage.pow(2).mean()
+        ac_loss = actor_loss + critic_loss + 0.001 * entropy
+
+        self.optimizer.zero_grad()
+        ac_loss.backward()
+        self.optimizer.step()
         Qvals = torch.zeros_like(values)
         q_val, _ = self.forward(state)
         for t in reversed(range(len(rewards))):

@@ -13,7 +13,6 @@ batch_size = 64
 learning_rate = 1e-3
 gamma = 0.99
 beta = 0.01
-
 def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gamma, 
               eval_interval=eval_interval, render_mode="human",beta=beta):
     
@@ -45,7 +44,7 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
         
         while  not (terminated or truncated):
 
-            value, policy_dist = actorCriticAgent(state)
+            value, policy_dist = actorCriticAgent(torch.tensor(state, dtype=torch.float32))
 
             action = torch.multinomial(policy_dist.squeeze(), num_samples=1).item()
             log_prob = torch.log(policy_dist.squeeze(0)[action])
@@ -74,26 +73,23 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
                 episode += 1
                 break
         episode_rewards = torch.tensor(episode_rewards, dtype=torch.float32)
-        # cslculate target temporal difference at 0
+        # calculate target temporal difference at 0
         next_value = actorCriticAgent.critic(torch.tensor(state, dtype=torch.float32))
         td_target = episode_rewards + gamma * next_value
         
         # compute critic loss and update 
-        critic_loss = torch.mean((td_target - actorCriticAgent.critic(state)) ** 2)
-        optimizer.zero_grad()
-        critic_loss.backward()
-        optimizer.step()
-        
-        # compute advantge and update actor
-        advantages = td_target - actorCriticAgent.critic(state)
-        actor_loss = -torch.mean(log_probs * advantages.detach())
+        # state = torch.tensor(state, dtype=torch.float32)
+        critic_loss = torch.mean(td_target - actorCriticAgent.critic(torch.tensor(state, dtype=torch.float32)) ** 2)
+
+        # compute advantage and update actor
+        advantages = advantages = td_target - actorCriticAgent.critic(torch.tensor(state, dtype=torch.float32))
+        actor_loss = -torch.mean(log_probs.squeeze() * advantages.detach())
         optimizer.zero_grad()
         actor_loss.backward()
         optimizer.step()
         
         actorCriticAgent.update(state, episode_rewards, log_probs, values, entropy)   
-        
-        
+
     del actorCriticAgent.actor
     del actorCriticAgent.critic
     
@@ -104,5 +100,3 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
 
 if __name__ == '__main__':
     returns, timesteps = actorcritic()
-
-
