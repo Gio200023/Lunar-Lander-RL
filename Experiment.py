@@ -37,8 +37,8 @@ def average_over_repetitions(n_timesteps, learning_rate, gamma, smoothing_window
     print(returns)
     print('Running one setting takes {} minutes'.format((time.time()-now)/60))
     # learning_curve = np.mean(np.array(returns),axis=0) # average over repetitions
-    # if smoothing_window is not None: 
-    #     returns = smooth(returns,smoothing_window) # additional smoothing
+    if smoothing_window is not None: 
+        returns = smooth(returns,smoothing_window) # additional smoothing
     return_dict.append([returns, timesteps, max_min])
 
 def experiment():
@@ -46,18 +46,18 @@ def experiment():
     smoothing_window = 9 # Must be an odd number. Use 'None' to switch smoothing off!
     render_mode= "rgb_array"
         
-    n_timesteps = 4001 # Set one extra timestep to ensure evaluation at start and end
+    n_timesteps = 500001 # Set one extra timestep to ensure evaluation at start and end
     eval_interval = 1000
     
     Plot = LearningCurvePlot(title = "REINFORCE")
     Plot.set_ylim(-300, 300)
     
-    # learning_rates = [0.01,0.001]
-    # gammas = [0.1,0.99]
-    # betas = [0.01,0.9]
-    gammas = [0.99]
-    learning_rates = [0.001]
-    betas = [0.9]
+    learning_rates = [0.01,0.001]
+    gammas = [0.1,0.99]
+    betas = [0.01,0.9]
+    # gammas = [0.99]
+    # learning_rates = [0.001]
+    # betas = [0.9]
     
     params = []
     
@@ -65,7 +65,7 @@ def experiment():
     return_dict = manager.list()
     
     procs = []
-    # with multiprocessing.Pool(processes=3) as pool:
+
     for learning_rate in learning_rates:
         for gamma in gammas:
             for beta in betas:
@@ -84,7 +84,7 @@ def experiment():
         Plot.add_fill_between(return_dict[_][1],return_dict[_][0],label=("lr:"+str(params[_][0])+"gam:"+str(params[_][1])+"beta:"+str(params[_][2])))
         # Plot.add_curve(return_dict[_][1],return_dict[_][0],label=("lr:"+str(params[_][0])+"gam:"+str(params[_][1])+"beta:"+str(params[_][2])))
             
-    Plot.save('new_plots/lol.png')
+    Plot.save('new_plots/reinforce_500k_smooth_hope_last.png')
 
 if __name__ == '__main__':
     # args = get_args()

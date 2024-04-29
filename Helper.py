@@ -38,7 +38,7 @@ class LearningCurvePlot:
         print("mean: ", mean)
         print("std: ", std)
 
-        self.ax.fill_between(x, mean - std, mean + std, alpha=.5, linewidth=0, label=label)
+        # self.ax.fill_between(x, mean - std, mean + std, alpha=.5, linewidth=0, label=label)
         self.ax.plot(x,y,label=label)
     
     def set_ylim(self,lower,upper):
