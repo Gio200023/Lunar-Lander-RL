@@ -1,6 +1,6 @@
 import gym
 import numpy as np
-from Agent import ActorCritic_Agent
+from Agent import Q_ActorCritic_Agent
 import torch
 import torch.optim as optim
 
@@ -74,6 +74,20 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
         next_value = actorCriticAgent.critic(torch.tensor(state, dtype=torch.float32))
         td_target = episode_rewards + gamma * next_value
         
+        # compute critic loss and update 
+        critic_loss = torch.mean((td_target - actorCriticAgent.critic(state)) ** 2)
+        optimizer.zero_grad()
+        critic_loss.backward()
+        optimizer.step()
+        
+        
+        # compute advantge and update actor
+        advantages = td_target - actorCriticAgent.critic(state)
+        actor_loss = -torch.mean(log_probs * advantages.detach())
+        optimizer.zero_grad()
+        actor_loss.backward()
+        optimizer.step()
+        
         optimizer.zero_grad()
         loss = actorCriticAgent.calculateLoss(gamma)
         loss.backward()
@@ -90,3 +104,5 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
 
 if __name__ == '__main__':
     returns, timesteps = actorcritic()
+
+   
