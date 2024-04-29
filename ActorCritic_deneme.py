@@ -20,7 +20,7 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
     env = gym.make("LunarLander-v2", render_mode=render_mode)
     env_eval = gym.make("LunarLander-v2")
 
-    actorCriticAgent = ActorCritic_Agent(n_states=8, n_actions=4, learning_rate=learning_rate,
+    actorCriticAgent = Q_ActorCritic_Agent(n_states=8, n_actions=4, learning_rate=learning_rate,
                               gamma=gamma, beta=beta)
     
     optimizer = optim.Adam(actorCriticAgent.parameters(), lr=learning_rate, betas=(0.9, 0.999))
@@ -28,33 +28,36 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
     eval_timesteps = []
     eval_returns = []
     
+    n_states=8
+    
     loss = 0
     iteration = 0
     episode = 0
     while iteration < n_timesteps:
-        state, info = env.reset(seed=42) 
         episode_rewards = []
         log_probs = []
-        state_values = []
-        entropies = []
+        values = []
+        entropy = 0
         terminated = False
         truncated = False
         
+        state, info = env.reset(seed=42) 
+        
         while  not (terminated or truncated):
-            # action, log_prob, entropy = actorCriticAgent.select_action(state)
-            action = actorCriticAgent(state)
-            observation, reward, terminated, truncated, info = env.step(action)
+
+            value, policy_dist = actorCriticAgent(state)
+
+            action = torch.multinomial(policy_dist.squeeze(), num_samples=1).item()
+            log_prob = torch.log(policy_dist.squeeze(0)[action])
+            new_entropy = -torch.sum(torch.mean(policy_dist) * torch.log(policy_dist))
+            next_state, reward, terminated, truncated, info = env.step(action)
             
-            actorCriticAgent.rewards.append(reward)
+            episode_rewards.append(reward)
+            log_probs.append(log_prob)
+            values.append(value)
+            new_entropy += entropy
             
-            # episode_rewards.append(reward)
-            # log_probs.append(log_prob)
-            
-            # _, state_value = actorCriticAgent(state)
-            # state_values.append(state_value)
-            # entropies.append(entropy)
-            
-            state = observation
+            state = next_state
             iteration += 1
             
             # Evaluation step
@@ -70,6 +73,7 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
             if terminated or truncated:
                 episode += 1
                 break
+        episode_rewards = torch.tensor(episode_rewards, dtype=torch.float32)
         # cslculate target temporal difference at 0
         next_value = actorCriticAgent.critic(torch.tensor(state, dtype=torch.float32))
         td_target = episode_rewards + gamma * next_value
@@ -80,7 +84,6 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
         critic_loss.backward()
         optimizer.step()
         
-        
         # compute advantge and update actor
         advantages = td_target - actorCriticAgent.critic(state)
         actor_loss = -torch.mean(log_probs * advantages.detach())
@@ -88,14 +91,11 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
         actor_loss.backward()
         optimizer.step()
         
-        optimizer.zero_grad()
-        loss = actorCriticAgent.calculateLoss(gamma)
-        loss.backward()
-        optimizer.step()        
-        actorCriticAgent.clearMemory()       
+        actorCriticAgent.update(state, episode_rewards, log_probs, values, entropy)   
         
-    # del actorCriticAgent.actor
-    # del actorCriticAgent.critic
+        
+    del actorCriticAgent.actor
+    del actorCriticAgent.critic
     
     env.close()
     env_eval.close()
@@ -105,4 +105,4 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
 if __name__ == '__main__':
     returns, timesteps = actorcritic()
 
-   
+
