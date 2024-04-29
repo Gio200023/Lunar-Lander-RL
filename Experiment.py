@@ -6,7 +6,7 @@ import time
 import argparse
 import sys
 
-from ActorCritic_LunarLender import actorcritic 
+from Q_ActorCritic_LunarLender import actorcritic 
 from Helper import LearningCurvePlot, smooth
 
 def get_args():
@@ -75,7 +75,7 @@ def experiment():
                 
                 Plot.add_curve(timesteps,learning_curve,label=("lr:"+str(learning_rate)+"gamma:"+str(gamma)+"entropy:"+str(entropy)))
             
-    Plot.save('new_plots/actor_critic_300k_totalparam_lr_001.png')
+    Plot.save('new_plots/lol.png')
 
 if __name__ == '__main__':
     # args = get_args()
