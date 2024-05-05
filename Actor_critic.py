@@ -37,7 +37,10 @@ def update_policy_bootstrap(state, action, reward, next_state, done, model, opti
     critic_loss = td_error.pow(2)
     probs = F.softmax(logits, dim=-1) + 1e-8
     actor_loss = -torch.log(probs.squeeze(0)[action]) * td_error.detach()
-    loss = actor_loss + critic_loss
+
+    log_probs= -torch.log(probs.squeeze(0)[action])
+    entropy = -(probs * log_probs).sum(dim=-1).mean()
+    loss = actor_loss + critic_loss - 0.01 * entropy 
 
     optimizer.zero_grad()
     loss.backward()
@@ -129,7 +132,9 @@ def update_policy_baseline(state, action, reward, model, optimizer):
     probs = F.softmax(logits, dim=-1) + 1e-8
     actor_loss = -torch.log(probs.squeeze(0)[action]) * advantage.detach()  # Actor loss using advantage
 
-    loss = actor_loss + critic_loss  # Total loss
+    log_probs= -torch.log(probs.squeeze(0)[action])
+    entropy = -(probs * log_probs).sum(dim=-1).mean()
+    loss = actor_loss + critic_loss - 0.01 * entropy 
 
     optimizer.zero_grad()
     loss.backward()
@@ -214,8 +219,11 @@ def update_policy(state, action, reward, next_state, done, model, optimizer):
 
     critic_loss = advantage.pow(2) 
     probs = F.softmax(logits, dim=-1) + 1e-8
+    log_probs= -torch.log(probs.squeeze(0)[action])
     actor_loss = -torch.log(probs.squeeze(0)[action]) * advantage.detach()  
-    loss = actor_loss + critic_loss 
+    
+    entropy = -(probs * log_probs).sum(dim=-1).mean()
+    loss = actor_loss + critic_loss - 0.01 * entropy  
 
     optimizer.zero_grad()
     loss.backward()
@@ -328,7 +336,7 @@ def train_and_evaluate_entropy(return_dict=None,n_timestep=5000,eval_interval=20
             logits, _ = model(state)
             probs = F.softmax(logits, dim=-1)
 
-            if np.random.rand() < 0.5:  # Epsilon-greedy for exploration
+            if np.random.rand() < 0.1:  # Epsilon-greedy for exploration
                 action = env.action_space.sample()
             else:
                 action = probs.multinomial(1).item()
@@ -353,7 +361,7 @@ def train_and_evaluate_entropy(return_dict=None,n_timestep=5000,eval_interval=20
 
     env.close()
     del model
-    # Plot.add_curve(range(len(evaluation_rewards)), evaluation_rewards, label="both")
+
     eval_rewards = smooth(eval_rewards,9)
     return_dict.append([eval_rewards,evaluation_time,"entropy"])
 
@@ -381,10 +389,6 @@ if __name__ == '__main__':
     # proc3 = Process(target=train_and_evaluate_bootstrap,args=(return_dict,n_timestep))
     # procs.append(proc3)
     # proc3.start()
-    
-    proc4 = Process(target=train_and_evaluate_entropy,args=(return_dict,n_timestep))
-    procs.append(proc4)
-    proc4.start()
     
     for proc in procs:
         proc.join()
