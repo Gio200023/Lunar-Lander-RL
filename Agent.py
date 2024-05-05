@@ -35,14 +35,10 @@ class REINFORCEAgent(nn.Module):
         self.policy_network = nn.Sequential(
             nn.Linear(self.n_states, 64),
             nn.ReLU(),
-            # nn.Linear(128, 128),
-            # nn.ReLU(),
-            # nn.Linear(128, 64),
-            # nn.ReLU(),
             nn.Linear(64, self.n_actions),
             nn.Softmax(dim=-1)
         )
-        #initialize policy network
+        
         for layer in self.policy_network:
             if isinstance(layer, nn.Linear):
                 init.xavier_uniform_(layer.weight)
@@ -85,14 +81,11 @@ class REINFORCEAgent(nn.Module):
             policy_loss.append(-log_prob * reward)
         policy_loss = torch.stack(policy_loss).sum()
         
-        # entropies = torch.tensor(entropies, dtype=torch.float32)
         entropy_loss = torch.mean(entropies)
-        # print(f"entropy_loss = {entropy_loss}")
         policy_loss = policy_loss - beta * entropy_loss
         
         self.optimizer.zero_grad()
         policy_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=1.0)
         self.optimizer.step()
         
     def evaluate(self, eval_env, n_eval_episodes=30, max_episode_length=200):
@@ -119,24 +112,3 @@ class REINFORCEAgent(nn.Module):
         
         mean_return = np.mean(total_rewards)
         return mean_return, np.mean(episode_maxes), np.mean(episode_mins)
-        
-    # def evaluate(self,eval_env,n_eval_episodes=30, max_episode_length=200):
-    #     total_rewards = []
-    #     all_rewards = []
-    #     for _ in range(n_eval_episodes):
-    #         state, info = eval_env.reset()
-    #         episode_reward = 0
-    #         done = False
-    #         truncated = False
-    #         iteration=0
-    #         while (not done and not truncated) and iteration < max_episode_length:
-    #             action, log_prob, entropy = self.select_action(state)
-    #             state, reward, done, truncated, info = eval_env.step(action)
-    #             all_rewards.append(reward)
-    #             episode_reward += reward
-    #             iteration+=1
-    #         maxim = max(all_rewards) + episode_reward
-    #         minim = min(all_rewards) + episode_reward
-    #         total_rewards.append(episode_reward)
-    #     mean_return = np.mean(total_rewards)
-    #     return mean_return,maxim,minim

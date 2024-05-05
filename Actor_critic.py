@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import gym
 import numpy as np
-from Helper import LearningCurvePlot, smooth
+from Helper import smooth
 
 class ActorCritic_bootstrap(nn.Module):
     def __init__(self, state_dim, action_dim):
@@ -62,13 +62,9 @@ def train_and_evaluate_bootstrap(return_dict=None,n_timestep=500000,eval_interva
         done = False
         while not done:
             logits, _ = model(state)
-            # logits = torch.clamp(logits, -10, 10)
             probs = F.softmax(logits, dim=-1)
 
-            if np.random.rand() < 0.1:  # Epsilon-greedy for exploration
-                action = env.action_space.sample()
-            else:
-                action = probs.multinomial(1).item()
+            action = probs.multinomial(1).item()
 
             next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
@@ -91,7 +87,6 @@ def train_and_evaluate_bootstrap(return_dict=None,n_timestep=500000,eval_interva
     env.close()
     del model
     eval_rewards = smooth(eval_rewards,9)
-    # Plot.add_curve(range(len(evaluation_rewards)), evaluation_rewards, label="both")
     return_dict.append([eval_rewards,evaluation_time,"boot"])
 
 # #################### Actor-Critic w/ Bootstrapping #####################
@@ -121,16 +116,13 @@ class ActorCritic_baseline(nn.Module):
 def update_policy_baseline(state, action, reward, model, optimizer):
     logits, current_value = model(state)
 
-    # Remove next_value and bootstrapping from the TD target
-    # TD target becomes just the reward, because there's no bootstrapping
-    td_target = torch.tensor([reward]).to(model.device)  # Ensure this is a tensor for operations
+    td_target = torch.tensor([reward]).to(model.device)  
 
-    # Calculate advantage using only current reward and current value
     advantage = td_target - current_value
 
-    critic_loss = advantage.pow(2)  # MSE Loss for the critic
+    critic_loss = advantage.pow(2)  
     probs = F.softmax(logits, dim=-1) + 1e-8
-    actor_loss = -torch.log(probs.squeeze(0)[action]) * advantage.detach()  # Actor loss using advantage
+    actor_loss = -torch.log(probs.squeeze(0)[action]) * advantage.detach()
 
     log_probs= -torch.log(probs.squeeze(0)[action])
     entropy = -(probs * log_probs).sum(dim=-1).mean()
@@ -158,16 +150,13 @@ def train_and_evaluate_baseline(return_dict=None,n_timestep=500000,eval_interval
             logits, _ = model(state)
             probs = F.softmax(logits, dim=-1)
 
-            if np.random.rand() < 0.1:  # Epsilon-greedy for exploration
-                action = env.action_space.sample()
-            else:
-                action = probs.multinomial(1).item()
+            action = probs.multinomial(1).item()
 
             next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
             next_state = torch.FloatTensor(next_state).to(model.device)
 
-            update_policy_baseline(state, action, reward, model, optimizer)  # Notice the updated function call
+            update_policy_baseline(state, action, reward, model, optimizer)
 
             state = next_state
             episode_reward += reward
@@ -183,7 +172,6 @@ def train_and_evaluate_baseline(return_dict=None,n_timestep=500000,eval_interval
 
     env.close()
     del model
-    # Plot.add_curve(range(len(evaluation_rewards)), evaluation_rewards, label="both")
     eval_rewards = smooth(eval_rewards,9)
     return_dict.append([eval_rewards,evaluation_time,"base"])
     
@@ -247,10 +235,7 @@ def train_and_evaluate_both(return_dict=None,n_timestep=500000,eval_interval=200
             logits, _ = model(state)
             probs = F.softmax(logits, dim=-1)
 
-            if np.random.rand() < 0.1:  # Epsilon-greedy for exploration
-                action = env.action_space.sample()
-            else:
-                action = probs.multinomial(1).item()
+            action = probs.multinomial(1).item()
 
             next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
@@ -310,7 +295,6 @@ def update_policy_entropy(state, action, reward, next_state, done, model, optimi
     log_probs = F.log_softmax(logits, dim=-1)
     actor_loss = -(log_probs.squeeze(0)[action] * td_error.detach()).mean()
 
-    # Entropy Regularization
     entropy = -(probs * log_probs).sum(dim=-1).mean()
     loss = actor_loss + critic_loss - 0.01 * entropy  
 
@@ -335,11 +319,8 @@ def train_and_evaluate_entropy(return_dict=None,n_timestep=5000,eval_interval=20
         while not done:
             logits, _ = model(state)
             probs = F.softmax(logits, dim=-1)
-
-            if np.random.rand() < 0.1:  # Epsilon-greedy for exploration
-                action = env.action_space.sample()
-            else:
-                action = probs.multinomial(1).item()
+            
+            action = probs.multinomial(1).item()
 
             next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
@@ -366,33 +347,3 @@ def train_and_evaluate_entropy(return_dict=None,n_timestep=5000,eval_interval=20
     return_dict.append([eval_rewards,evaluation_time,"entropy"])
 
 #################### Entropy Regularization #####################
-
-from multiprocessing import Process, Manager
-
-if __name__ == '__main__':
-    params = []
-    procs = []
-    manager = Manager()
-    return_dict = manager.list()
-    Plot = LearningCurvePlot(title = "ACTOR CRITIC with Entropy")
-    
-    n_timestep = 5000
-    
-    # proc1 = Process(target=train_and_evaluate_both,args=(return_dict,n_timestep))
-    # procs.append(proc1)
-    # proc1.start()
-    
-    # proc2 = Process(target=train_and_evaluate_baseline,args=(return_dict,n_timestep))
-    # procs.append(proc2)
-    # proc2.start()
-    
-    # proc3 = Process(target=train_and_evaluate_bootstrap,args=(return_dict,n_timestep))
-    # procs.append(proc3)
-    # proc3.start()
-    
-    for proc in procs:
-        proc.join()
-        
-    for _ in range(len(return_dict)):
-        Plot.add_curve(return_dict[_][1],return_dict[_][0],label=(f"{return_dict[_][2]}"))
-    Plot.save("actorcritic-gpu-entropy.png")

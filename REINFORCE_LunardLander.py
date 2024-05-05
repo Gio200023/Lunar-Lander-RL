@@ -4,8 +4,6 @@ from Agent import REINFORCEAgent
 import torch
 import sys
 
-
-# PARAMETERS if not initialized from Experiment.py
 num_iterations = 1000 
 num_eval_episodes = 10 
 eval_interval = 1000  
@@ -25,16 +23,12 @@ temp = 0.05
 def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gamma, 
                 eval_interval=eval_interval, render_mode = "rgb_array", beta=0.1):
     
-    # env = gym.make("MountainCar-v0")
-    # env_eval = gym.make("MountainCar-v0")
     env = gym.make("LunarLander-v2",render_mode=render_mode, continuous = False,gravity = -10.0,enable_wind = False)
     env_eval = gym.make("LunarLander-v2", continuous = False,gravity = -10.0,enable_wind = False)
     
     reinforceAgent = REINFORCEAgent(
                         n_states=8, 
                         n_actions=4, 
-                        # n_states=2,
-                        # n_actions=3, 
                         learning_rate=learning_rate, 
                         gamma=gamma)
                         
@@ -46,11 +40,6 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
 
     iteration = 0
     episode = 0
-    
-    # dictionary = {
-    #     "eval_returns" : [],
-    #     "max_min" : []
-    # }
     
     while iteration <= n_timesteps:
         episode_rewards = []

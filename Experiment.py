@@ -35,8 +35,8 @@ def average_over_repetitions(n_timesteps, learning_rate, gamma, smoothing_window
     print(returns)
     print('Running REINFORCE takes {} minutes'.format((time.time()-now)/60))
 
-    # if smoothing_window is not None: 
-    #     returns = smooth(returns,smoothing_window) # additional smoothing
+    if smoothing_window is not None: 
+        returns = smooth(returns,smoothing_window) # additional smoothing
         
     return_dict.append([returns, timesteps,"reinforce"])
 
@@ -59,8 +59,6 @@ def experiment(actor_critic, ac_base, ac_boot,reinforce):
     procs = []
     
     now = time.time()
-    
-    ## UNCOMMENT TRAIN TO RUN
 
     if reinforce:
         print("start reinforce")
@@ -93,7 +91,8 @@ def experiment(actor_critic, ac_base, ac_boot,reinforce):
     
     for _ in range(len(return_dict)):
         Plot.add_curve(return_dict[_][1],return_dict[_][0],label=(f"{return_dict[_][2]}"))
-    image_name = "entropy_egreedy_high.png"
+        
+    image_name = "assignment3.png"
     print(f"Training took: {finish} seconds, image name: {image_name} ")
     Plot.save(image_name)
 
