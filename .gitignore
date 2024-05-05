@@ -1,4 +1,8 @@
 rl2/
+ass3/
+
+new_plots/
+.vscode/
 
 *.pyc
 __pycache__/
