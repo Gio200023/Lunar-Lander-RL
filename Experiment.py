@@ -6,30 +6,15 @@ import multiprocessing
 from multiprocessing import Process, Manager
 
 from Q_ActorCritic_LunarLender import actorcritic 
+from for_cart import train_and_evaluate
 from Helper import LearningCurvePlot, smooth
 
-# def get_args():
-#     parser = argparse.ArgumentParser(description="Experiment settings")
-#     parser.add_argument('--no_er', action='store_true', help='Do not use replay buffer if flag is set')
-#     parser.add_argument('--no_tn', action='store_true', help='Do not use target network if flag is set')
-#     try:
-#         args = parser.parse_args()
-#     except argparse.ArgumentError as e:
-#         print("Argument parsing error: ", e.message)
-#         sys.exit(2)
-#     except SystemExit:
-#         # This can be triggered if unknown arguments are provided.
-#         print("Incorrect usage")
-#         print("Possible arguments are:")
-#         print("--no_er: remove the Experience Replay")
-#         print("--no_tn: remove the Target Network")
-#         sys.exit(2)
-#     return args
-
-def average_over_repetitions(n_timesteps, learning_rate, gamma, smoothing_window=None, eval_interval=500, render_mode="",beta=0.01,return_dict=None,update="both"):
+def average_over_repetitions(n_timesteps, learning_rate, gamma, smoothing_window=None, eval_interval=500, render_mode="",return_dict=None,update="both"):
     
     now = time.time()
-    returns, timesteps = actorcritic(n_timesteps, learning_rate, gamma,eval_interval,render_mode,beta=beta,update=update)
+    # returns, timesteps = actorcritic(n_timesteps, learning_rate, gamma,eval_interval,render_mode,update=update)
+    
+    returns, timesteps = train_and_evaluate(n_timesteps,update,eval_interval, learning_rate, gamma, 0.90)
 
     print(returns)
     print('Running one setting takes {} minutes'.format((time.time()-now)/60))
@@ -43,20 +28,25 @@ def experiment():
     smoothing_window = 9 # Must be an odd number. Use 'None' to switch smoothing off!
     render_mode= "rgb_array"
         
-    n_timesteps = 20001 # Set one extra timestep to ensure evaluation at start and end
-    eval_interval = 5000
+    n_timesteps = 500001 # Set one extra timestep to ensure evaluation at start and end
+    eval_interval = 2000
     
     Plot = LearningCurvePlot(title = "ACTOR CRITIC")
-    Plot.set_ylim(-300, 300)
+    Plot.set_ylim(-500, 500)
     
     learning_rates = [0.001]
-    gammas = [0.01]
-    betas = [0.01]
-    updates = ["both"]
-    # updates = ["both","boot","base"]
+    gammas = [0.9]
+    updates = ["both","base","boot"]
+    
+    # single run
+    # updates = ["td"]
     # gammas = [0.99]
     # learning_rates = [0.001]
-    # betas = [0.01,0.90]
+    
+    # td
+    # updates = ["td"]
+    # gammas = [0.99,0.1]
+    # learning_rates = [0.001, 0.01]
     
     params = []
     manager = Manager()
@@ -68,14 +58,13 @@ def experiment():
 
     for learning_rate in learning_rates:
         for gamma in gammas:
-            for beta in betas:
-                for update in updates:
-                    print(f"Parameters set: \n lr: {learning_rate}\n gamma: {gamma} \n beta {beta}")
-                    proc = Process(target=average_over_repetitions,args=(n_timesteps,learning_rate, gamma, smoothing_window, eval_interval,render_mode, beta,return_dict,update))
-                    procs.append(proc)
-                    proc.start()
-                    
-                    params.append([learning_rate,gamma,beta,update])
+            for update in updates:
+                print(f"Parameters set: \n lr: {learning_rate}\n gamma: {gamma}")
+                proc = Process(target=average_over_repetitions,args=(n_timesteps,learning_rate, gamma, smoothing_window, eval_interval,render_mode, return_dict,update))
+                procs.append(proc)
+                proc.start()
+                
+                params.append([learning_rate,gamma,update])
 
     for proc in procs:
         proc.join()
@@ -83,13 +72,12 @@ def experiment():
     finish = time.time() - now
     
     for _ in range(len(return_dict)):
-        # Plot.add_fill_between(return_dict[_][1],return_dict[_][0],label=("lr:"+str(params[_][0])+"gam:"+str(params[_][1])+"beta:"+str(params[_][2])))
-        if len(update) > 1:
-            Plot.add_curve(return_dict[_][1],return_dict[_][0],label=(f"{params[_][3]},gam:{params[_][1]},beta:{params[_][2]}"))
+        if len(updates) > 1:
+            Plot.add_curve(return_dict[_][1],return_dict[_][0],label=(f"{params[_][2]},gam:{params[_][1]},lr:{params[_][0]}"))
         else:
-            Plot.add_curve(return_dict[_][1],return_dict[_][0],label=("lr:"+str(params[_][0])+"gam:"+str(params[_][1])+"beta:"+str(params[_][2])))
+            Plot.add_curve(return_dict[_][1],return_dict[_][0],label=("lr:"+str(params[_][0])+"gam:"+str(params[_][1])))
     
-    image_name = "new_plots/try1.png"
+    image_name = "new_plots/try.png"
     print(f"Training took: {finish} seconds, image name: {image_name} ")
     Plot.save(image_name)
 
