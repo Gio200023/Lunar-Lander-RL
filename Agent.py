@@ -21,14 +21,13 @@ class Q_ActorCritic_Agent(nn.Module):
     Returns:
         int: best action according to the policy
     """
-    def __init__(self, n_states, n_actions, learning_rate, gamma, beta):
+    def __init__(self, n_states, n_actions, learning_rate, gamma):
         super(Q_ActorCritic_Agent, self).__init__()
         self.n_states = n_states
         self.n_actions = n_actions
         self.gamma = gamma  
         self.learning_rate = learning_rate
         self._current_iteration = 0
-        self.beta = beta
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
@@ -38,11 +37,9 @@ class Q_ActorCritic_Agent(nn.Module):
 
         # Actor Network
         self.actor = nn.Sequential(
-            nn.Linear(n_states, 64),
+            nn.Linear(n_states, 32),
             nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, n_actions)
+            nn.Linear(32, n_actions)
         )
         
         #initialize actor network
@@ -53,11 +50,9 @@ class Q_ActorCritic_Agent(nn.Module):
         
         # Critic Network
         self.critic = nn.Sequential(
-            nn.Linear(n_states, 64),
+            nn.Linear(n_states, 32),
             nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1)
+            nn.Linear(32, 1)
         )
         
          #initialize critic network
@@ -66,16 +61,12 @@ class Q_ActorCritic_Agent(nn.Module):
                 init.xavier_uniform_(layer.weight)
                 init.constant_(layer.bias, 0)
         
+        # self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=learning_rate)
+        # self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=learning_rate)
+        
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         
         self.to(self.device)
-
-    def forward(self, state):
-        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
-        value = self.critic(state)
-        policy_dist = F.softmax(self.actor(state), dim=1)
-        
-        return value, policy_dist
 
     def select_action_(self,policy_dist):
         dist = distributions.Categorical(policy_dist)
@@ -83,63 +74,79 @@ class Q_ActorCritic_Agent(nn.Module):
         log_prob = dist.log_prob(action)
         return action.item(), log_prob
 
-    
+    def forward(self, state):
+        torch.autograd.set_detect_anomaly(True)
+
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        value = self.critic(state)
+        logits= self.actor(state)
+        policy_dist = F.softmax(logits, dim=1)
+        
+        return value, policy_dist
+
     def update_both(self,state, rewards, log_probs, values, entropy):
         
-        values = torch.tensor(values,dtype=torch.float32).to(self.device)
+        values = torch.tensor(values,dtype=torch.float32).to(self.device).detach()
         
-        Qvals = torch.zeros_like(values)
+        #  Prepare Qvals without inplace operations
+        Qvals_list = []
         q_val, _ = self.forward(state)
+        q_val = q_val.detach()  # Ensure no gradients are propagated back from future computations
         for t in reversed(range(len(rewards))):
             q_val = rewards[t] + self.gamma * q_val
-            Qvals[t] = q_val
-        
-        log_probs = torch.stack(log_probs)
-        advantages = Qvals - values
-        baseline = values.mean()
-        advantages -= baseline  
-        
-        actor_loss = (-log_probs *advantages).mean()
-        critic_loss = 0.5 * advantages.pow(2).mean()
-        ac_loss = actor_loss + critic_loss + 0.001 * entropy
-        
+            Qvals_list.append(q_val)
 
+        # Qvals = torch.zeros_like(values)
+        # q_val, _ = self.forward(state)
+        # for t in reversed(range(len(rewards))):
+        #     q_val = rewards[t] + self.gamma * q_val
+        #     Qvals[t] = q_val
+
+        Qvals = torch.stack(Qvals_list[::-1]).to(self.device).detach()
+
+        log_probs = torch.stack(log_probs)
+        advantages = (Qvals - values).detach()
+        advantages = advantages - advantages.mean() 
+        
+        actor_loss = (-log_probs *advantages).mean() + (0.01 *  entropy)
+        critic_loss = 0.5 * advantages.pow(2).mean() + (0.01 *  entropy)
+        ac_loss = actor_loss + critic_loss 
+        
         self.optimizer.zero_grad()
-        ac_loss.backward()
+        ac_loss.backward(retain_graph=True)
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
         self.optimizer.step()
-        
-        # print("log_probs",log_probs)
-        # print("advantages",advantages)
-        # print("baseline",baseline)
-        # print("actor_loss",actor_loss)
-        # print("critic_loss",critic_loss)
-        # print("ac_loss",ac_loss)
-        # print("rewards",rewards)
-        
-        # if self._current_iteration > 200:
-        #     sys.exit(0)
-        
         
     def update_bootstrap_only(self, state, rewards, log_probs, values, entropy):
         
         values = torch.tensor(values, dtype=torch.float32).to(self.device)
         
-        Qvals = torch.zeros_like(values)
+        # Qvals = torch.zeros_like(values)
+        # q_val, _ = self.forward(state)
+        # for t in reversed(range(len(rewards))):
+        #     q_val = rewards[t] + self.gamma * q_val
+        #     Qvals[t] = q_val
+        
+         # Prepare Qvals without inplace operations
+        Qvals_list = []
         q_val, _ = self.forward(state)
+        q_val = q_val.detach()  # Ensure no gradients are propagated back from future computations
         for t in reversed(range(len(rewards))):
             q_val = rewards[t] + self.gamma * q_val
-            Qvals[t] = q_val
+            Qvals_list.append(q_val)
+
+        Qvals = torch.stack(Qvals_list[::-1]).to(self.device)
+
         
         log_probs = torch.stack(log_probs)
         advantages = Qvals - values  # Only bootstrapping, no baseline subtraction
         
-        actor_loss = (-log_probs * advantages).mean()
-        critic_loss = 0.5 * advantages.pow(2).mean()
-        ac_loss = actor_loss + critic_loss + 0.001 * entropy
+        actor_loss = (-log_probs * advantages).mean() + (0.01 *  entropy)
+        critic_loss = 0.5 * advantages.pow(2).mean() + (0.01 *  entropy)
+        ac_loss = actor_loss + critic_loss 
 
         self.optimizer.zero_grad()
-        ac_loss.backward()
+        ac_loss.backward(retain_graph=True)
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
         self.optimizer.step()
 
@@ -150,16 +157,40 @@ class Q_ActorCritic_Agent(nn.Module):
         advantages = values - baseline  # Only using baseline to calculate advantages
         
         log_probs = torch.stack(log_probs)
-        actor_loss = (-log_probs * advantages).mean()
-        critic_loss = 0.5 * advantages.pow(2).mean()
-        ac_loss = actor_loss + critic_loss + 0.001 * entropy
+        actor_loss = (-log_probs * advantages).mean() + (0.01 *  entropy)
+        critic_loss = 0.5 * advantages.pow(2).mean() + (0.01 *  entropy)
+        ac_loss = actor_loss + critic_loss 
 
         self.optimizer.zero_grad()
-        ac_loss.backward()
+        ac_loss.backward(retain_graph=True)
+        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
+        self.optimizer.step()
+        
+    def update_td(self, state, next_state, action, reward, entropy):
+        current_value, probs = self(state)
+        next_value, _ = self(next_state)
+        
+        td_target = reward + 0.99 * next_value.detach()
+        td_error = td_target - current_value
+
+        critic_loss = td_error.pow(2).mean()  
+        
+        log_prob = torch.log(probs.squeeze(0)[action].clamp(min=1e-6))
+        app = -log_prob * td_error.detach()
+        actor_loss =  app - 0.01 * entropy  
+        loss = actor_loss + critic_loss
+
+        # loss.backward()
+        # torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
+        # self.optimizer.step()
+        
+        self.optimizer.zero_grad()
+        loss.backward()
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
         self.optimizer.step()
 
-    def evaluate(self, env, n_eval_episodes=30, max_episode_length=200):
+
+    def evaluate(self, env, n_eval_episodes=10, max_episode_length=200):
         total_rewards = []
         
         for _ in range(n_eval_episodes):
@@ -170,8 +201,9 @@ class Q_ActorCritic_Agent(nn.Module):
             iteration = 0
             
             while not done and not truncated and iteration < max_episode_length:
-                _, policy_dist = self(state)
-                action = torch.multinomial(policy_dist.squeeze(), num_samples=1).item()
+                state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+                policy_dist = self.actor(state)
+                action = torch.argmax(policy_dist).item()
                 state, reward, done, truncated, info = env.step(action)
                 episode_rewards.append(reward)
                 iteration += 1

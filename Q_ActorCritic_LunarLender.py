@@ -17,13 +17,13 @@ gamma = 0.99
 beta = 0.01
 
 def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gamma, 
-              eval_interval=eval_interval, render_mode="human",beta=beta, update="both"):
+              eval_interval=eval_interval, render_mode="human", update="both"):
     
     env = gym.make("LunarLander-v2", render_mode=render_mode)
     env_eval = gym.make("LunarLander-v2")
 
     actorCriticAgent = Q_ActorCritic_Agent(n_states=8, n_actions=4, learning_rate=learning_rate,
-                              gamma=gamma, beta=beta)
+                              gamma=gamma)
 
     eval_timesteps = []
     eval_returns = []
@@ -42,10 +42,13 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
         
         while  not (terminated or truncated):
 
-            value, policy_dist = actorCriticAgent(state)
+            value, policy_dist = actorCriticAgent.forward(state)
 
-            action = torch.multinomial(policy_dist.squeeze(), num_samples=1).item()
-            
+            if np.random.rand() < 0.1:  # Epsilon-greedy for exploration
+                action = env.action_space.sample()
+            else:
+                action = torch.multinomial(policy_dist.squeeze(), num_samples=1).item()
+
             log_prob = torch.log(policy_dist.squeeze(0)[action])
             
             # action, log_prob = actorCriticAgent.select_action_(policy_dist)
@@ -55,11 +58,11 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
             episode_rewards.append(reward)
             log_probs.append(log_prob)
             values.append(value)
-            new_entropy += entropy
+            entropy += new_entropy 
             
-            state = next_state
             iteration += 1
             actorCriticAgent._current_iteration = iteration
+            state = next_state
             
             # Evaluation step
             if iteration % eval_interval == 0:
@@ -73,14 +76,42 @@ def actorcritic(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=g
             if terminated or truncated:
                 episode += 1
                 break
-            
-        if update == "both":
-            actorCriticAgent.update_both(state, episode_rewards, log_probs, values, new_entropy)   
-        elif update == "base":
-            actorCriticAgent.update_baseline_only(state, episode_rewards, log_probs, values, new_entropy)   
-        elif update == "boot":
-            actorCriticAgent.update_bootstrap_only(state, episode_rewards, log_probs, values, new_entropy)   
         
+        # UPDATE PHASE
+        n_step = 10  
+        total_steps = len(episode_rewards)  
+
+        for start_index in range(total_steps - n_step + 1):
+            end_index = start_index + n_step
+
+            current_rewards = episode_rewards[start_index:end_index]
+            current_log_probs = log_probs[start_index:end_index]
+            current_values = values[start_index:end_index]
+
+            if update == "td":
+                actorCriticAgent.update_td(state, next_state, action, reward, entropy)  
+            elif update == "both":
+                actorCriticAgent.update_both(state, current_rewards, current_log_probs, current_values, entropy)   
+            elif update == "base":
+                actorCriticAgent.update_baseline_only(state, current_rewards, current_log_probs, current_values, entropy)   
+            elif update == "boot":
+                actorCriticAgent.update_bootstrap_only(state, current_rewards, current_log_probs, current_values, entropy)
+ 
+        if total_steps > n_step:
+            for start_index in range(total_steps - n_step, total_steps):
+                current_rewards = episode_rewards[start_index:total_steps]
+                current_log_probs = log_probs[start_index:total_steps]
+                current_values = values[start_index:total_steps]
+
+                if update == "both":
+                    actorCriticAgent.update_both(state, current_rewards, current_log_probs, current_values, entropy)   
+                elif update == "base":
+                    actorCriticAgent.update_baseline_only(state, current_rewards, current_log_probs, current_values, entropy)   
+                elif update == "boot":
+                    actorCriticAgent.update_bootstrap_only(state, current_rewards, current_log_probs, current_values, entropy)
+
+          
+            
     del actorCriticAgent.actor
     del actorCriticAgent.critic
     
