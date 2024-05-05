@@ -77,10 +77,7 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
                 eval_ret,maxim,minim = reinforceAgent.evaluate(env_eval, n_eval_episodes=num_eval_episodes)
                 eval_returns.append(eval_ret)
                 max_min.append([maxim,minim])
-                print("step: ",iteration)
-                print("Number of episodes: ",episode)
-                print("Total_reward: ",eval_ret)
-                # print("max_min: ",max_min)
+                print(f"(reinforce) step: {iteration}, Average Reward : {eval_ret}")
 
             iteration+=1
             reinforceAgent._current_iteration=iteration
@@ -93,7 +90,6 @@ def reinforce(n_timesteps=num_iterations, learning_rate=learning_rate, gamma=gam
         
         reinforceAgent.update_policy_network(rewards=episode_rewards, log_probs=log_probs, entropies=entropies, beta=beta)
     
-    torch.save(reinforceAgent.policy_network, "networks/net_"+str(gamma)+"_"+str(beta)+"_"+str(learning_rate))
     del reinforceAgent.policy_network
     env.close()
     
