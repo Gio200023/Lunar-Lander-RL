@@ -24,7 +24,7 @@ To run Actor-Critic with just bootstrap, run:
 python Experiment.py --ac_boot
 ```
 
-To run them all together, run:
+To run them together, run:
 ```
 python Experiment.py --ac_boot --ac_base --actor_critic --reinforce
 ```
